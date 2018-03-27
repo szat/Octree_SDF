@@ -60,15 +60,34 @@ bool halfRayTriangleIntersect(const array<double,3> & source, const array<double
 		return false;
 }
 
+bool halfRayBoxIntersect(const array<double,3> & source, const array<double,3> & dir, double low_t, double high_t, const array<array<double,3>,2> & box) {
+	//https://www.cs.utah.edu/~awilliam/box/box.pdf
+	array<double, 3> inv_dir = { 1 / dir[0], 1 / dir[1], 1 / dir[2] };
+	array<int, 3> sign;
+	sign[0] = inv_dir[0] < 0;
+	sign[1] = inv_dir[1] < 0;
+	sign[2] = inv_dir[2] < 0;
 
+	double tmin, tmax, tymin, tymax, tzmin, tzmax;
+	tmin =  (box[sign[0]][0] -   source[0]) * inv_dir[0];
+	tmax =  (box[1-sign[0]][0] - source[0]) * inv_dir[0];
+	tymin = (box[sign[1]][1] -   source[1]) * inv_dir[1];
+	tymax = (box[1 - sign[1]][1] - source[1]) * inv_dir[1];
+	if ((tmin > tymax) || (tymin > tmax))
+		return false;
+	if (tymin > tmin)
+		tmin = tymin;
+	if (tymax < tmax)
+		tmax = tymax;
+	tzmin = (box[sign[2]][2] -   source[2]) * inv_dir[2];
+	tzmax = (box[1-sign[2]][2] - source[2]) * inv_dir[2];
+	if ((tmin > tzmax) || (tzmin > tmax))
+		return false;
+	if (tzmin > tmin)
+		tmin = tzmin;
+	if (tzmax < tmax)
+		tmax = tzmax;
+	return ((tmin < high_t) && (tmax > low_t));
 
-
-bool halfRayBoxIntersect(const std::vector<double> & source, const std::vector<double> & dir, const std::vector<std::vector<double>> & box) {
-	//This function returns a boolean is the ray is in the box 
-
-	//Validate data
-
-	//A vector of points in 3d
-	double epsilon = 0.0000001;
-
+	return true;
 }
