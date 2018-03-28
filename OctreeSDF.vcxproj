@@ -157,6 +157,7 @@
     <ClInclude Include="octree.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="testing.h" />
     <ClInclude Include="tutorial_shared_path.h" />
   </ItemGroup>
   <ItemGroup>
