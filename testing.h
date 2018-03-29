@@ -189,4 +189,6 @@ void test_RayTriangle() {
 
 }
 
-
+void test_build() {
+	return;
+}

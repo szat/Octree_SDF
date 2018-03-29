@@ -4,28 +4,31 @@
 #include <iostream>
 #include <string>
 #include <array>
+#include <cmath>
 
 using namespace std;
 
 class SDF {
 private:
 	//Data
-	const vector<array<double, 3>> & V;
-	const vector<array<int, 3>> & F;
-	const vector<array<double, 3>> & bary;
+	vector<array<double, 3>> & V;
+	vector<array<int, 3>> & F;
+	vector<array<double, 3>> & bary;
 
 	//Node
+	int leaves;
 	array<array<double, 3>, 2> box;
 	vector<int> indices; //of triangles
 	array<unique_ptr<SDF>, 8> children;
 public:
-	SDF(const vector<array<double, 3>> & V, const vector<array<int, 3>> & F, const vector<array<double, 3>> & bary)
+	SDF(vector<array<double, 3>> & V, vector<array<int, 3>> & F, vector<array<double, 3>> & bary)
 		: V(V), F(F), bary(bary) {};
 	SDF(const SDF& other) = delete;
 	SDF& operator=(const SDF& rhs) = delete;
 
 	void init();
 	void build();
+	bool test() const;
 };
 
 void SDF::init() {
@@ -34,10 +37,19 @@ void SDF::init() {
 	}
 }
 
+bool SDF::test() const {
+	return true;
+}
+
+//clear index set, add int nb of leaves
 void SDF::build() {
 	if (this->indices.size() == 0) {
 		return;
 	}
+
+	//For stats and visualization
+	this->leaves = indices.size();
+	//cout << "leaves nb " << this->leaves << endl;
 
 	//Compute box
 	array<double, 3> bound_down;
@@ -45,37 +57,57 @@ void SDF::build() {
 	double epsilon = 0.0000000001;
 	array<double, 3> first;
 	first = this->V.at(this->F.at(this->indices.at(0))[0]);
-	bound_up = { first[0] + epsilon, first[1] + epsilon, first[2] + epsilon };
-	bound_down = { first[0] - epsilon, first[1] - epsilon, first[2] - epsilon };
+	bound_up	= { first[0] + epsilon, first[1] + epsilon, first[2] + epsilon };
+	bound_down	= { first[0] - epsilon, first[1] - epsilon, first[2] - epsilon };
+
+	//cout << "bound up : " << bound_up[0] << ", " << bound_up[1] << ", " << bound_up[2] << endl;
+	//cout << "bound down : " << bound_down[0] << ", " << bound_down[1] << ", " << bound_down[2] << endl;
 
 	for (size_t i = 0; i < this->indices.size(); ++i) {
 		for (size_t j = 0; j < 3; ++j) {
 			array<double, 3> pt = this->V.at(this->F.at(this->indices.at(i))[j]);
 			for (size_t d = 0; d < 3; ++d) {
-				if (bound_up[d] < pt[d])
+				if (bound_up[d] < pt[d]) {
 					bound_up[d] = pt[d];
-				if (bound_down[d] > pt[d])
+				}
+				if (bound_down[d] > pt[d]) {
 					bound_down[d] = pt[d];
+				}
 			}
 		}
 	}
-	bound_up = { bound_up[0] + epsilon, bound_up[1] + epsilon, bound_up[2] + epsilon };
-	bound_down = { bound_down[0] - epsilon, bound_down[1] - epsilon, bound_down[2] - epsilon };
-	this->box = { bound_down, bound_up };
+	bound_up	= { bound_up[0] + epsilon, bound_up[1] + epsilon, bound_up[2] + epsilon };
+	bound_down	= { bound_down[0] - epsilon, bound_down[1] - epsilon, bound_down[2] - epsilon };
+
+	//cout << "bound up : " << bound_up[0] << ", " << bound_up[1] << ", " << bound_up[2] << endl;
+	//cout << "bound down : " << bound_down[0] << ", " << bound_down[1] << ", " << bound_down[2] << endl;
+
+	//cin.ignore();
+
+	this->box[0] = bound_down;
+	this->box[1] = bound_up;
 
 	//More than one triangle remaining in the box
 	if (this->indices.size() > 1) {
 		//Compute center
 		array<double, 3> mean;
-		for (size_t i = 0; i < this->indices.size(); ++i) {
-			mean[0] += mean[0] + bary.at(this->indices.at(i))[0];
-			mean[1] += mean[1] + bary.at(this->indices.at(i))[1];
-			mean[2] += mean[2] + bary.at(this->indices.at(i))[2];
+		int nb = this->indices.size();
+		mean[0] = bary.at(this->indices.at(0))[0];
+		mean[1] = bary.at(this->indices.at(0))[1];
+		mean[2] = bary.at(this->indices.at(0))[2];
+		for (size_t i = 1; i < nb; ++i) {
+			//cout << "bary " << bary.at(this->indices.at(i))[0] << ", " << bary.at(this->indices.at(i))[1] << ", " << bary.at(this->indices.at(i))[2] << endl;
+			mean[0] = mean[0] + (bary.at(this->indices.at(i))[0] - mean[0]) / (i + 1);
+			mean[1] = mean[1] + (bary.at(this->indices.at(i))[1] - mean[1]) / (i + 1);
+			mean[2] = mean[2] + (bary.at(this->indices.at(i))[2] - mean[2]) / (i + 1);
+			//cout << "center " << mean[0] << ", " << mean[1] << ", " << mean[2] << endl;
 		}
-		mean[0] = mean[0] / this->indices.size();
-		mean[1] = mean[1] / this->indices.size();
-		mean[2] = mean[2] / this->indices.size();
-
+		//mean[0] = mean[0] * ratio[0];
+		//mean[1] = mean[1] * ratio[1];
+		//mean[2] = mean[2] * ratio[2];
+		//cout << "center " << mean[0] << ", " << mean[1] << ", " << mean[2] << endl;
+		//cout << "this->indices.size() " << this->indices.size() << endl;
+		//cin.ignore();
 		//Compute new indices
 		array<vector<int>, 8> sub_indices;
 
@@ -83,39 +115,62 @@ void SDF::build() {
 			array<double, 3> pt = bary.at(indices.at(i));
 			if (pt[0] > mean[0]) {
 				if (pt[1] > mean[1]) {
-					if (pt[2] > mean[2])
+					if (pt[2] > mean[2]) {
+						//cout << "in quad 1" << endl;
 						sub_indices[0].push_back(indices.at(i));
-					else //pt[2] <= mean[2]
+					}
+					else {//pt[2] <= mean[2] 
+						//cout << "in quad 2" << endl;
 						sub_indices[1].push_back(indices.at(i));
+					}
 				}
 				else {   //pt[1] <= mean[1]
-					if (pt[2] > mean[2])
+					if (pt[2] > mean[2]) {
+						//cout << "in quad 3" << endl;
 						sub_indices[2].push_back(indices.at(i));
-					else //pt[2] <= mean[2]
+					}
+					else {//pt[2] <= mean[2]
+						//cout << "in quad 4" << endl;
 						sub_indices[3].push_back(indices.at(i));
+					}
 				}
 			}
 			else {		 //pt[0] <= mean[0]
 				if (pt[1] > mean[1]) {
-					if (pt[2] > mean[2])
+					if (pt[2] > mean[2]) {
+						//cout << "in quad 5" << endl;
 						sub_indices[4].push_back(indices.at(i));
-					else //pt[2] <= mean[2]
+					}
+					else {//pt[2] <= mean[2]
+						//cout << "in quad 6" << endl;
 						sub_indices[5].push_back(indices.at(i));
+					}
 				}
 				else {   //pt[1] <= mean[1]
-					if (pt[2] > mean[2])
+					if (pt[2] > mean[2]) {
+						//cout << "in quad 5" << endl;
 						sub_indices[6].push_back(indices.at(i));
+					}
 					else //pt[2] <= mean[2]
 						sub_indices[7].push_back(indices.at(i));
 				}
 			}
 		}
+		//cout << "sub_indices sizez ";
+		//for (int i = 0; i < 8; ++i) {
+		//	cout << sub_indices[i].size() << " ";
+		//}
+		//cout << endl;
+		indices.clear(); //save memory
+
+		//cin.ignore();
 
 		//Create children and recurse
 		for (size_t i = 0; i < 8; ++i) {
 			if (sub_indices[i].size() > 0) {
 				this->children[i] = unique_ptr<SDF>(new SDF(this->V, this->F, this->bary));
 				this->children[i]->indices = sub_indices[i];
+				//sub_indices[i].clear();
 				this->children[i]->build();
 			}
 		}
