@@ -21,12 +21,12 @@ private:
 	vector<int> indices; //of triangles
 	array<unique_ptr<SDF>, 8> children;
 	
-	//For debugging
+	//For testing
 	bool is_leaf() const;
 	bool test1() const;
 	int test2() const;
-	bool test3() const;
-	bool test4() const;
+	vector<int> test3() const;
+	vector<int> test4() const;
 public:
 	SDF(vector<array<double, 3>> & V, vector<array<int, 3>> & F, vector<array<double, 3>> & bary)
 		: V(V), F(F), bary(bary) {};
@@ -43,85 +43,6 @@ void SDF::init() {
 		this->indices.push_back((int)i);
 	}
 }
-
-bool SDF::is_leaf() const {
-	bool is_leaf = true;
-	for (int i = 0; i < 8; ++i) {
-		if (this->children[i] != nullptr) {
-			is_leaf = false;
-		}
-	}
-	return is_leaf;
-}
-
-void SDF::test() const {
-	cout << "Testing tree" << endl;
-	bool t1 = this->test1();
-	if (t1 == true) {
-		cout << "All leaves have exactly one triangle index." << endl;
-	}
-	int t2 = this->test2();
-	if (t2 == this->F.size()) {
-		cout << "Same number of triangles as number of faces." << endl;
-	}
-}
-
-bool SDF::test1() const {
-	//Verify that each leaf has only one triangle
-	if (this->is_leaf() == true) {
-		//in a leaf
-		if (this->indices.size() == 1) {
-			return true;
-		}
-		else {
-			cout << "This leaf has " << this->indices.size() << " triangle index size." << endl;
-			return false;
-		}
-	}
-	else {
-		//not a leaf
-		bool all_ok = true;
-		for (int i = 0; i < 8; ++i) {
-			if (this->children[i] != nullptr) {
-				all_ok = all_ok & this->children[i]->test1();
-			}
-		}
-		return all_ok;
-	}
-}
-
-int SDF::test2() const {
-	//Verify that the number of leaves is the number of total triangles
-	if (this->is_leaf() == true) {
-		return 1;
-	}
-	else {
-		int count = 0;
-		bool all_ok = true;
-		for (int i = 0; i < 8; ++i) {
-			if (this->children[i] != nullptr) {
-				count += this->children[i]->test2();
-			}
-		}
-		return count;
-	}
-}
-
-bool SDF::test3() const {
-	//Verify that the number of leaves is the number of total triangles
-	//Verify that the boxes do contain the triangles
-	//Verify that the union of the indices in the leaves is the total index set
-	return true;
-}
-
-
-bool SDF::test4() const {
-	//Verify that the number of leaves is the number of total triangles
-	//Verify that the boxes do contain the triangles
-	//Verify that the union of the indices in the leaves is the total index set
-	return true;
-}
-
 
 //clear index set, add int nb of leaves
 void SDF::build() {
@@ -340,4 +261,175 @@ bool RayBox(const array<double, 3> & source, const array<double, 3> & dir, doubl
 	if (tzmax < tmax)
 		tmax = tzmax;
 	return ((tmin < high_t) && (tmax > low_t));
+}
+
+bool TriangleBox(const array<array<double, 3>,3> & triangle, const array<array<double, 3>, 2> & box) {
+	//	this->box[0] = bound_down;
+	//  this->box[1] = bound_up;
+	for (size_t i = 0; i < 3; ++i) {
+		array<double, 3> pt = triangle[i];
+		if (box[0][0] > pt[0] || pt[0] > box[1][0]) {
+			return false;
+		}
+		if (box[0][1] > pt[1] || pt[1] > box[1][1]) {
+			return false;
+		}
+		if (box[0][2] > pt[2] || pt[2] > box[1][2]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool SDF::is_leaf() const {
+	bool is_leaf = true;
+	for (int i = 0; i < 8; ++i) {
+		if (this->children[i] != nullptr) {
+			is_leaf = false;
+		}
+	}
+	return is_leaf;
+}
+
+void SDF::test() const {
+	cout << "Testing tree" << endl;
+	bool t1 = this->test1();
+	if (t1 == true) {
+		cout << "All leaves have exactly one triangle index." << endl;
+	}
+	int t2 = this->test2();
+	if (t2 == this->F.size()) {
+		cout << "Same number of triangles as number of faces." << endl;
+	}
+
+	vector<int> idx_o;
+	for (size_t i = 0; i < this->F.size(); ++i) {
+		idx_o.push_back(i);
+	}
+	set<int> idxset_orig(idx_o.begin(), idx_o.end());
+
+	vector<int> t3 = this->test3();
+	set<int> idxset3(t3.begin(), t3.end());
+	if (idxset3 == idxset_orig) {
+		cout << "All the triangles are contained in the correct boxes." << endl;
+	}
+
+	vector<int> t4 = this->test4();
+	set<int> idxset(t4.begin(),t4.end());
+	if (idxset == idxset_orig) {
+		cout << "The indices in the leaves equals the original indices." << endl;
+	}
+}
+
+bool SDF::test1() const {
+	//Verify that each leaf has only one triangle
+	if (this->is_leaf() == true) {
+		//in a leaf
+		if (this->indices.size() == 1) {
+			return true;
+		}
+		else {
+			cout << "This leaf has " << this->indices.size() << " triangle index size." << endl;
+			return false;
+		}
+	}
+	else {
+		//not a leaf
+		bool all_ok = true;
+		for (int i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+				all_ok = all_ok & this->children[i]->test1();
+			}
+		}
+		return all_ok;
+	}
+}
+
+int SDF::test2() const {
+	//Verify that the number of leaves is the number of total triangles
+	if (this->is_leaf() == true) {
+		return 1;
+	}
+	else {
+		int count = 0;
+		bool all_ok = true;
+		for (int i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+				count += this->children[i]->test2();
+			}
+		}
+		return count;
+	}
+}
+
+vector<int> SDF::test3() const {
+	//Verify that the boxes do contain the triangles
+	//cout << "s1" << endl;
+	if (this->is_leaf()) {
+	//	cout << "in leaf" << endl;
+		int tri_idx = (this->indices).at(0);
+		array<array<double, 3>, 3> triangle;
+		array<int,3> pts_idx = (this->F).at(tri_idx);
+		triangle[0] = (this->V).at(pts_idx[0]);
+		triangle[1] = (this->V).at(pts_idx[1]);
+		triangle[2] = (this->V).at(pts_idx[2]);
+		if (TriangleBox(triangle, this->box) == true) {
+			return this->indices;
+		}
+		else {
+			vector<int> empty;
+			return empty;
+		}
+	}
+	else {
+		//cout << "not in leaf" << endl;
+		vector<int> idx;
+
+		for (size_t i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+	//			cout << "in not nullptr" << endl;
+				vector<int> temp = this->children[i]->test3();
+				idx.insert(end(idx), begin(temp), end(temp));
+			}
+		}
+//		cout << "s3" << endl;
+		
+		bool all_ok = true;
+		for (size_t i = 0; i < idx.size(); ++i) {
+			int tri_idx = idx.at(i);
+			array<array<double, 3>, 3> triangle;
+			array<int, 3> pts_idx = (this->F).at(tri_idx);
+			triangle[0] = (this->V).at(pts_idx[0]);
+			triangle[1] = (this->V).at(pts_idx[1]);
+			triangle[2] = (this->V).at(pts_idx[2]);
+			if (TriangleBox(triangle, this->box) == false) {
+				all_ok = false; 
+			}
+		}
+		if (all_ok == true) {
+			return idx;
+		}
+		else {
+			vector<int> empty;
+			return empty;
+		}
+	}
+}
+
+
+vector<int> SDF::test4() const {
+	//Verify that the union of the indices in the leaves is the total index set
+	if (this->is_leaf()) {
+		return this->indices;
+	}
+	else {
+		vector<int> idx;
+		for (int i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+				vector<int> temp = this->children[i]->test4();
+				idx.insert(end(idx), begin(temp), end(temp));
+			}
+		}
+		return idx;
+	}
 }
