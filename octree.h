@@ -20,6 +20,13 @@ private:
 	array<array<double, 3>, 2> box;
 	vector<int> indices; //of triangles
 	array<unique_ptr<SDF>, 8> children;
+	
+	//For debugging
+	bool is_leaf() const;
+	bool test1() const;
+	int test2() const;
+	bool test3() const;
+	bool test4() const;
 public:
 	SDF(vector<array<double, 3>> & V, vector<array<int, 3>> & F, vector<array<double, 3>> & bary)
 		: V(V), F(F), bary(bary) {};
@@ -28,7 +35,7 @@ public:
 
 	void init();
 	void build();
-	bool test() const;
+	void test() const;
 };
 
 void SDF::init() {
@@ -37,9 +44,84 @@ void SDF::init() {
 	}
 }
 
-bool SDF::test() const {
+bool SDF::is_leaf() const {
+	bool is_leaf = true;
+	for (int i = 0; i < 8; ++i) {
+		if (this->children[i] != nullptr) {
+			is_leaf = false;
+		}
+	}
+	return is_leaf;
+}
+
+void SDF::test() const {
+	cout << "Testing tree" << endl;
+	bool t1 = this->test1();
+	if (t1 == true) {
+		cout << "All leaves have exactly one triangle index." << endl;
+	}
+	int t2 = this->test2();
+	if (t2 == this->F.size()) {
+		cout << "Same number of triangles as number of faces." << endl;
+	}
+}
+
+bool SDF::test1() const {
+	//Verify that each leaf has only one triangle
+	if (this->is_leaf() == true) {
+		//in a leaf
+		if (this->indices.size() == 1) {
+			return true;
+		}
+		else {
+			cout << "This leaf has " << this->indices.size() << " triangle index size." << endl;
+			return false;
+		}
+	}
+	else {
+		//not a leaf
+		bool all_ok = true;
+		for (int i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+				all_ok = all_ok & this->children[i]->test1();
+			}
+		}
+		return all_ok;
+	}
+}
+
+int SDF::test2() const {
+	//Verify that the number of leaves is the number of total triangles
+	if (this->is_leaf() == true) {
+		return 1;
+	}
+	else {
+		int count = 0;
+		bool all_ok = true;
+		for (int i = 0; i < 8; ++i) {
+			if (this->children[i] != nullptr) {
+				count += this->children[i]->test2();
+			}
+		}
+		return count;
+	}
+}
+
+bool SDF::test3() const {
+	//Verify that the number of leaves is the number of total triangles
+	//Verify that the boxes do contain the triangles
+	//Verify that the union of the indices in the leaves is the total index set
 	return true;
 }
+
+
+bool SDF::test4() const {
+	//Verify that the number of leaves is the number of total triangles
+	//Verify that the boxes do contain the triangles
+	//Verify that the union of the indices in the leaves is the total index set
+	return true;
+}
+
 
 //clear index set, add int nb of leaves
 void SDF::build() {
@@ -172,6 +254,9 @@ void SDF::build() {
 				this->children[i]->indices = sub_indices[i];
 				//sub_indices[i].clear();
 				this->children[i]->build();
+			}
+			else {
+				this->children[i] = nullptr;
 			}
 		}
 	}
