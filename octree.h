@@ -291,8 +291,36 @@ vector<array<double, 3>> SDF::query(array<double, 3> & source, array<double, 3> 
 	}
 };
 
-vector<double> SDF::query(vector<array<double, 3>> & v_normals) const {
+vector<double> SDF::query(vector<array<double, 3>> & inv_normals) const {
+	//Needs normals that point outside->in
 	//Returns the SDF for all the vertices of the mesh, needs the input of the normals
+	//NORM SQUARED
+	vector<double> sdf;
+	for (size_t i = 0; i < inv_normals.size(); ++i) {
+		vector<array<double, 3>> intersect = this->query((this->V).at(i), inv_normals.at(i));
+		double my_min = DBL_MAX;
+		for (size_t j = 0; j < intersect.size(); ++j) {
+			array<double, 3> diff = { intersect.at(j)[0] - (this->V).at(i)[0], intersect.at(j)[1] - (this->V).at(i)[1],intersect.at(j)[2] - (this->V).at(i)[2] };
+			double norm_sq = dot(diff, diff);
+			if (my_min > norm_sq && norm_sq > 0.0005) {
+				my_min = norm_sq;
+			}
+		}
+		if (my_min != DBL_MAX) {
+			sdf.push_back(my_min);
+		}
+		else {
+			sdf.push_back(0); //in case there was "no interection"
+		}
+	}
+	//Take out if not visualizing
+	//double my_max = *max_element(sdf.begin(), sdf.end());
+	//for (size_t i = 0; i < inv_normals.size(); ++i) {
+	//	if (sdf.at(i) == 0) {
+	//		sdf.at(i) = my_max;
+	//	}
+	//}
+	return sdf;
 }
 
 bool SDF::is_leaf() const {
