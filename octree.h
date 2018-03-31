@@ -6,14 +6,35 @@
 #include <array>
 #include <cmath>
 
+/*
+Author: Adrian Szatmari
+Date: 2018-03-31
+License: MIT
+Dependencies: None, just drag and drop octree.h into your project. To visualize use libigl.
+
+Description: this is a small header library to compute the Surface Distance Function (SDF). The SDF measures the penetration distance 
+in the inward normal direction, until the next surface hit. The following web pages helped for the dev of this code:
+
+WARNING: to save time and memory, this SDF class references the matrices instead of a local copy, therefore do not change their values once
+the tree structure is built. 
+
+TODO:
+-For some reason the code crashes for very big meshes (>500k faces). I suspect it is a stack/heap issue. 
+-Need to adjust automatically the values that SDF outputs for visualization (using igl::jet).
+-Need to multithread the build() routine and and query() routine. The first is non trivia, but the strategy is to manually split
+the first 8 children into 8 separate threads, and then to unite the output by hand. The query() can be trivially parallelized.   
+*/
+
 using namespace std;
 
 double dot(const array<double, 3> &A, const array<double, 3> &B) {
+	//Returns the dot product, only for a 3 array
 	double out = A[0] * B[0] + A[1] * B[1] + A[2] * B[2];
 	return out;
 }
 
 array<double, 3> cross(const array<double, 3> &A, const array<double, 3> &B) {
+	//Returns the cross product only for a 3 array
 	array<double, 3> out;
 	out[0] = A[1] * B[2] - A[2] * B[1];
 	out[1] = A[2] * B[0] - A[0] * B[2];
@@ -22,7 +43,12 @@ array<double, 3> cross(const array<double, 3> &A, const array<double, 3> &B) {
 }
 
 bool RayTriangle(const array<double, 3> & source, const array<double, 3> & dir, const array<array<double, 3>, 3> & tri, array<double, 3> & intersection) {
-	//https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+	/*
+	Input: source point of ray, direction vector of ray, triangle defined by 3 points.
+	Output: bool of whether there is intersection, intersection point by reference.
+	Warning: This routine returns false and empty intersection in case the ray is on the same plane as the triangle and goes through. 
+	Link: https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+	*/
 	const double epsilon = 0.00000001;
 	array<double, 3> v0 = tri[0];
 	array<double, 3> v1 = tri[1];
@@ -59,7 +85,11 @@ bool RayTriangle(const array<double, 3> & source, const array<double, 3> & dir, 
 }
 
 bool RayBox(const array<double, 3> & source, const array<double, 3> & dir, double low_t, double high_t, const array<array<double, 3>, 2> & box) {
-	//https://www.cs.utah.edu/~awilliam/box/box.pdf
+	/*
+	Input: source point of ray, direction vector of ray, interval for the scalar factor for direction vector, box defined by diagonal points low and high.
+	Output: bool of whether there is intersection.
+	Link: https://www.cs.utah.edu/~awilliam/box/box.pdf
+	*/
 	array<double, 3> inv_dir = { 1 / dir[0], 1 / dir[1], 1 / dir[2] };
 	array<int, 3> sign;
 	sign[0] = inv_dir[0] < 0;
@@ -88,8 +118,11 @@ bool RayBox(const array<double, 3> & source, const array<double, 3> & dir, doubl
 }
 
 bool TriangleBox(const array<array<double, 3>, 3> & triangle, const array<array<double, 3>, 2> & box) {
-	//	this->box[0] = bound_down;
-	//  this->box[1] = bound_up;
+	/*
+	Input: triangle defined by 3 points, box defined by diagonal points low and high.
+	Output: bool of whether there is intersection.
+	*/
+	//There is an intersection iff one of the points of the triangle is not in the box
 	for (size_t i = 0; i < 3; ++i) {
 		array<double, 3> pt = triangle[i];
 		if (box[0][0] > pt[0] || pt[0] > box[1][0]) {
@@ -110,27 +143,27 @@ private:
 	//Data
 	vector<array<double, 3>> & V;
 	vector<array<int, 3>> & F;
-	vector<array<double, 3>> & bary;
+	vector<array<double, 3>> & bary; //of the triangles in F
 
 	//Node
 	int leaves;
-	array<array<double, 3>, 2> box;
+	array<array<double, 3>, 2> box; //defined by low and high
 	vector<int> indices; //of triangles
 	array<unique_ptr<SDF>, 8> children;
 
 	//For testing
 	bool is_leaf() const;
-	bool test1() const;
-	int test2() const;
-	vector<int> test3() const;
-	vector<int> test4() const;
+	bool test1() const; //called only by test()
+	int test2() const; //called only by test()
+	vector<int> test3() const; //called only by test()
+	vector<int> test4() const; //called only by test()
 public:
 	SDF(vector<array<double, 3>> & V, vector<array<int, 3>> & F, vector<array<double, 3>> & bary)
-		: V(V), F(F), bary(bary) {};
-	SDF(const SDF& other) = delete;
-	SDF& operator=(const SDF& rhs) = delete;
+		: V(V), F(F), bary(bary) {}; //passing V, F, bary, by reference
+	SDF(const SDF& other) = delete; //non-copy move only semantic
+	SDF& operator=(const SDF& rhs) = delete; //non-copy move only semantic
 
-	void init();
+	void init(); //necessary
 	void build();
 	void test() const;
 	vector<array<double, 3>> query(array<double, 3> & source, array<double, 3> & dir) const;
@@ -138,6 +171,9 @@ public:
 };
 
 void SDF::init() {
+	//Necessary to jump start the build
+	//Puts the indices of all faces in the initial root node, since the root contains all faces
+	//Theses indices are later pushed down to the leaves
 	for (size_t i = 0; i < this->F.size(); ++i) {
 		this->indices.push_back((int)i);
 	}
@@ -150,10 +186,10 @@ void SDF::build() {
 	this->leaves = indices.size();
 	//cout << "leaves nb " << this->leaves << endl;
 
-	//Compute box
+	//Compute box and add a halo for safety
 	array<double, 3> bound_down;
 	array<double, 3> bound_up;
-	double epsilon = 0.0000000001;
+	double epsilon = 0.0000000001; //halo
 	array<double, 3> first;
 	first = this->V.at(this->F.at(this->indices.at(0))[0]);
 	bound_up = { first[0] + epsilon, first[1] + epsilon, first[2] + epsilon };
@@ -161,6 +197,7 @@ void SDF::build() {
 	//cout << "bound up : " << bound_up[0] << ", " << bound_up[1] << ", " << bound_up[2] << endl;
 	//cout << "bound down : " << bound_down[0] << ", " << bound_down[1] << ", " << bound_down[2] << endl;
 
+	//Find the dimensions in the box, the box has to contain all the 3 points of each face in the node
 	for (size_t i = 0; i < this->indices.size(); ++i) {
 		for (size_t j = 0; j < 3; ++j) {
 			array<double, 3> pt = this->V.at(this->F.at(this->indices.at(i))[j]);
@@ -174,6 +211,7 @@ void SDF::build() {
 			}
 		}
 	}
+	//Add halo
 	bound_up = { bound_up[0] + epsilon, bound_up[1] + epsilon, bound_up[2] + epsilon };
 	bound_down = { bound_down[0] - epsilon, bound_down[1] - epsilon, bound_down[2] - epsilon };
 	//cout << "bound up : " << bound_up[0] << ", " << bound_up[1] << ", " << bound_up[2] << endl;
@@ -182,7 +220,7 @@ void SDF::build() {
 	this->box[0] = bound_down;
 	this->box[1] = bound_up;
 
-	//More than one triangle remaining in the box
+	//More than one triangle remaining in the box, recursion
 	if (this->indices.size() > 1) {
 		//Compute center
 		array<double, 3> mean;
@@ -197,7 +235,7 @@ void SDF::build() {
 		}
 		//cout << "center " << mean[0] << ", " << mean[1] << ", " << mean[2] << endl;
 
-		//Compute new indices
+		//Compute new indices, split the index set into 8, 1 per quadrant
 		array<vector<int>, 8> sub_indices;
 
 		for (size_t i = 0; i < this->indices.size(); ++i) {
@@ -256,7 +294,13 @@ void SDF::build() {
 }
 
 vector<array<double, 3>> SDF::query(array<double, 3> & source, array<double, 3> & dir) const {
-	//Returns all the intersection points of the mesh with the ray defined by source and dir
+	/*
+	Input: vector of source point(s) of ray, vector of direction(s) vector of ray.
+	Output: first intersection point with the mesh of each ray defined by source and dir.
+	Warning: it is yet unclear whether the first intersection point is the right one. 
+	Maybe a condition such as if the first intersection point is too close, then pick the second one would make sense here.
+	*/
+	//This function also works by recursion, since we want at first all intersection points with the mesh
 	if (this->is_leaf()) {
 		array<double, 3> intersection;
 		array<array<double, 3>, 3> tri;
@@ -277,7 +321,7 @@ vector<array<double, 3>> SDF::query(array<double, 3> & source, array<double, 3> 
 			return empty;
 		} //can add epsilon wiggle after
 	}
-	else {
+	else { //if this is not a leaf, query until you find the leaf and then concatenate up
 		vector<array<double, 3>> out;
 		for (size_t i = 0; i < 8; ++i) {
 			if (this->children[i] != nullptr) { 
@@ -292,9 +336,11 @@ vector<array<double, 3>> SDF::query(array<double, 3> & source, array<double, 3> 
 };
 
 vector<double> SDF::query(vector<array<double, 3>> & inv_normals) const {
-	//Needs normals that point outside->in
-	//Returns the SDF for all the vertices of the mesh, needs the input of the normals
-	//NORM SQUARED
+	/*
+	Input: vector of inverted normals, one per vertiex in this->V.
+	Output: closest surface distance from a point in V and the mesh itself.
+	Warning: RIGHT now it is returning the distance squared, just change to sqrt to correct that
+	*/
 	vector<double> sdf;
 	for (size_t i = 0; i < inv_normals.size(); ++i) {
 		vector<array<double, 3>> intersect = this->query((this->V).at(i), inv_normals.at(i));
@@ -313,17 +359,11 @@ vector<double> SDF::query(vector<array<double, 3>> & inv_normals) const {
 			sdf.push_back(0); //in case there was "no interection"
 		}
 	}
-	//Take out if not visualizing
-	//double my_max = *max_element(sdf.begin(), sdf.end());
-	//for (size_t i = 0; i < inv_normals.size(); ++i) {
-	//	if (sdf.at(i) == 0) {
-	//		sdf.at(i) = my_max;
-	//	}
-	//}
 	return sdf;
 }
 
 bool SDF::is_leaf() const {
+	//Returns true is current node is a leaf
 	bool is_leaf = true;
 	for (int i = 0; i < 8; ++i) {
 		if (this->children[i] != nullptr) {
@@ -399,7 +439,7 @@ bool SDF::test1() const {
 }
 
 int SDF::test2() const {
-	//Verify that the number of leaves is the number of total triangles
+	//Verify that the number of leaves is total number of triangles
 	if (this->is_leaf() == true) {
 		return 1;
 	}
@@ -417,6 +457,7 @@ int SDF::test2() const {
 
 vector<int> SDF::test3() const {
 	//Verify that the boxes do contain the triangles at every level
+	//By recursion, so returns a vector of indices under it, then concatenates
 	if (this->is_leaf()) { //return the index set only if the indexed triangle is contained in the box
 		int tri_idx = (this->indices).at(0);
 		array<array<double, 3>, 3> triangle;
