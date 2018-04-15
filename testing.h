@@ -5,26 +5,26 @@
 #include "octree.h"
 
 using namespace std;
-
-void test_Eigen2CPP() {
-	/*
-	This function tests Eigen2CPP which serves as a bridge between Eigen and this C++ header project.
-	Input: an Eigen matrix, that NEEDS to be dynamic rows and with 3 cols. The type is templated.
-	Output: a C++ vector of arrays with 3 columns. The type is templated.
-	*/
-	Matrix<int, Dynamic, 3> F = (MatrixXi(4, 3) << 1, 2, 3,
-		1, 2, 3,
-		5, 6, 7,
-		7, 8, 9).finished();
-	vector<array<int, 3>> matF = Eigen2CPP(F);
-	for (int row = 0; row < F.rows(); ++row) {
-		for (int col = 0; col < 3; ++col) {
-			cout << matF.at(row)[col] << " ";
-		}
-		cout << endl;
-	}
-	cin.ignore();
-}
+//
+//void test_Eigen2CPP() {
+//	/*
+//	This function tests Eigen2CPP which serves as a bridge between Eigen and this C++ header project.
+//	Input: an Eigen matrix, that NEEDS to be dynamic rows and with 3 cols. The type is templated.
+//	Output: a C++ vector of arrays with 3 columns. The type is templated.
+//	*/
+//	Matrix<int, Dynamic, 3> F = (MatrixXi(4, 3) << 1, 2, 3,
+//		1, 2, 3,
+//		5, 6, 7,
+//		7, 8, 9).finished();
+//	vector<array<int, 3>> matF = Eigen2CPP(F);
+//	for (int row = 0; row < F.rows(); ++row) {
+//		for (int col = 0; col < 3; ++col) {
+//			cout << matF.at(row)[col] << " ";
+//		}
+//		cout << endl;
+//	}
+//	cin.ignore();
+//}
 
 void test_RayBox() {
 	cout << "Int test RayBox ..." << endl;
